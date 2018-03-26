@@ -136,3 +136,29 @@ func Test_WinCDEmuInstaller(t *testing.T) {
 	assert.EqualValues(t, "*", da.ProcessorArchitecture)
 	assert.EqualValues(t, "6595b64144ccf1df", da.PublicKeyToken)
 }
+
+func Test_PidginUninstaller(t *testing.T) {
+	f, err := eos.Open("./testdata/pidgin/pidgin-uninst.exe")
+	assert.NoError(t, err)
+	defer f.Close()
+
+	info, err := pelican.Probe(f, testProbeParams(t))
+	assert.NoError(t, err)
+	assert.EqualValues(t, pelican.Arch386, info.Arch)
+
+	vp := info.VersionProperties
+	assert.EqualValues(t, "Pidgin Installer", vp["FileDescription"])
+	assert.EqualValues(t, "2.10.11", vp["FileVersion"])
+	assert.EqualValues(t, "Pidgin", vp["ProductName"])
+	assert.EqualValues(t, "2.10.11", vp["ProductVersion"])
+
+	assert.NotNil(t, info.AssemblyInfo)
+	assert.EqualValues(t, "highestAvailable", info.AssemblyInfo.RequestedExecutionLevel)
+
+	assert.EqualValues(t, 1, len(info.DependentAssemblies))
+	da := info.DependentAssemblies[0]
+	assert.EqualValues(t, "Microsoft.Windows.Common-Controls", da.Name)
+	assert.EqualValues(t, "*", da.Language)
+	assert.EqualValues(t, "X86", da.ProcessorArchitecture)
+	assert.EqualValues(t, "6595b64144ccf1df", da.PublicKeyToken)
+}
