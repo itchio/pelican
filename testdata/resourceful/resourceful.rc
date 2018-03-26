@@ -1,0 +1,30 @@
+#include "winver.h"
+#define IDI_ICON_S 101
+
+1 VERSIONINFO
+FILEVERSION     1,0,0,0
+PRODUCTVERSION  1,0,0,0
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "080904E4"
+    BEGIN
+      VALUE "CompanyName", "itch corp."
+      VALUE "FileDescription", "Test PE file for pelican"
+      VALUE "FileVersion", "3.14"
+      VALUE "InternalName", "resourceful"
+      VALUE "LegalCopyright", "(c) 2018 itch corp."
+      VALUE "OriginalFilename", "resourceful.exe"
+      VALUE "ProductName", "butler"
+      VALUE "ProductVersion", "6.28"
+    END
+  END
+
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x809, 1252
+  END
+END
+
+IDI_ICON_S       ICON      "pelican.ico"
+
