@@ -81,6 +81,8 @@ func assertResources(t *testing.T, info *pelican.PeInfo) {
 	assert.EqualValues(t, "butler", vp["ProductName"])
 
 	assert.EqualValues(t, "6.28", vp["ProductVersion"])
+
+	assert.Nil(t, info.AssemblyInfo)
 }
 
 func Test_Resourceful32Mingw(t *testing.T) {
@@ -105,4 +107,32 @@ func Test_Resourceful64Mingw(t *testing.T) {
 	assert.EqualValues(t, pelican.ArchAmd64, info.Arch)
 
 	assertResources(t, info)
+}
+
+func Test_WinCDEmuInstaller(t *testing.T) {
+	f, err := eos.Open("./testdata/wincdemu/WinCDEmu-4.1.exe")
+	assert.NoError(t, err)
+	defer f.Close()
+
+	info, err := pelican.Probe(f, testProbeParams(t))
+	assert.NoError(t, err)
+	assert.EqualValues(t, pelican.Arch386, info.Arch)
+
+	vp := info.VersionProperties
+	assert.EqualValues(t, "Sysprogs OU", vp["CompanyName"])
+	assert.EqualValues(t, "WinCDEmu installer", vp["FileDescription"])
+	assert.EqualValues(t, "4.1", vp["FileVersion"])
+	assert.EqualValues(t, "LGPL", vp["LegalCopyright"])
+	assert.EqualValues(t, "WinCDEmu", vp["ProductName"])
+	assert.EqualValues(t, "4.1", vp["ProductVersion"])
+
+	assert.NotNil(t, info.AssemblyInfo)
+	assert.EqualValues(t, "requireAdministrator", info.AssemblyInfo.RequestedExecutionLevel)
+
+	assert.EqualValues(t, 1, len(info.DependentAssemblies))
+	da := info.DependentAssemblies[0]
+	assert.EqualValues(t, "Microsoft.Windows.Common-Controls", da.Name)
+	assert.EqualValues(t, "*", da.Language)
+	assert.EqualValues(t, "*", da.ProcessorArchitecture)
+	assert.EqualValues(t, "6595b64144ccf1df", da.PublicKeyToken)
 }
