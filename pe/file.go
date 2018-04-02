@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/pkg/errors"
 )
 
 // Avoid use of post-Go 1.4 io features, to make safe for toolchain bootstrap.
@@ -25,7 +27,9 @@ type File struct {
 	COFFSymbols    []COFFSymbol // all COFF symbols (including auxiliary symbol records)
 	StringTable    StringTable
 
-	closer io.Closer
+	closer   io.Closer
+	readerAt io.ReaderAt
+	base     int64
 }
 
 // Open opens the named file using os.Open and prepares it for use as a PE binary.
@@ -65,6 +69,7 @@ var (
 // NewFile creates a new File for accessing a PE binary in an underlying reader.
 func NewFile(r io.ReaderAt) (*File, error) {
 	f := new(File)
+	f.readerAt = r
 	sr := io.NewSectionReader(r, 0, 1<<63-1)
 
 	var dosheader [96]byte
@@ -112,6 +117,7 @@ func NewFile(r io.ReaderAt) (*File, error) {
 	}
 
 	// Read optional header.
+	f.base = base
 	sr.Seek(base, seekStart)
 	if err := binary.Read(sr, binary.LittleEndian, &f.FileHeader); err != nil {
 		return nil, err
@@ -242,16 +248,12 @@ func (f *File) DWARF() (*dwarf.Data, error) {
 	return dwarf.New(abbrev, nil, nil, info, line, nil, ranges, str)
 }
 
-// TODO(brainman): document ImportDirectory once we decide what to do with it.
-
-type ImportDirectory struct {
+type ImageImportDescriptor struct {
 	OriginalFirstThunk uint32
 	TimeDateStamp      uint32
 	ForwarderChain     uint32
 	Name               uint32
 	FirstThunk         uint32
-
-	dll string
 }
 
 // ImportedSymbols returns the names of all symbols
@@ -259,57 +261,79 @@ type ImportDirectory struct {
 // satisfied by other libraries at dynamic load time.
 // It does not return weak symbols.
 func (f *File) ImportedSymbols() ([]string, error) {
+	var dd [16]DataDirectory
+	switch oh := f.OptionalHeader.(type) {
+	case *OptionalHeader32:
+		dd = oh.DataDirectory
+	case *OptionalHeader64:
+		dd = oh.DataDirectory
+	}
+
+	importTableAddress := dd[1]
+
 	pe64 := f.Machine == IMAGE_FILE_MACHINE_AMD64
-	ds := f.Section(".idata")
+
+	iStart := int64(importTableAddress.VirtualAddress)
+	iEnd := int64(importTableAddress.VirtualAddress) + int64(importTableAddress.Size)
+	var ds *Section
+	for _, s := range f.Sections {
+		sStart := int64(s.VirtualAddress)
+		sEnd := int64(s.VirtualAddress) + int64(s.VirtualSize)
+
+		if sStart <= iStart && iEnd <= sEnd {
+			ds = s
+			break
+		}
+	}
 	if ds == nil {
-		// not dynamic, so no libraries
+		// could not find matching section :(
 		return nil, nil
 	}
-	d, err := ds.Data()
+
+	sectionData, err := ds.Data()
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
-	var ida []ImportDirectory
-	for len(d) > 0 {
-		var dt ImportDirectory
-		dt.OriginalFirstThunk = binary.LittleEndian.Uint32(d[0:4])
-		dt.Name = binary.LittleEndian.Uint32(d[12:16])
-		dt.FirstThunk = binary.LittleEndian.Uint32(d[16:20])
-		d = d[20:]
+
+	sectionData = sectionData[importTableAddress.VirtualAddress-ds.VirtualAddress:]
+
+	var importDirectories []ImageImportDescriptor
+	idBlock := sectionData
+	for len(idBlock) > 0 {
+		var dt ImageImportDescriptor
+		dt.OriginalFirstThunk = binary.LittleEndian.Uint32(idBlock[0:4])
+		dt.Name = binary.LittleEndian.Uint32(idBlock[12:16])
+		dt.FirstThunk = binary.LittleEndian.Uint32(idBlock[16:20])
+		idBlock = idBlock[20:]
 		if dt.OriginalFirstThunk == 0 {
 			break
 		}
-		ida = append(ida, dt)
+		importDirectories = append(importDirectories, dt)
 	}
-	// TODO(brainman): this needs to be rewritten
-	//  ds.Data() return contets of .idata section. Why store in variable called "names"?
-	//  Why we are retrieving it second time? We already have it in "d", and it is not modified anywhere.
-	//  getString does not extracts a string from symbol string table (as getString doco says).
-	//  Why ds.Data() called again and again in the loop?
-	//  Needs test before rewrite.
-	names, _ := ds.Data()
-	var all []string
-	for _, dt := range ida {
-		dt.dll, _ = getString(names, int(dt.Name-ds.VirtualAddress))
-		d, _ = ds.Data()
+
+	var allSymbols []string
+	for _, dt := range importDirectories {
+		dll, _ := getString(sectionData, int(dt.Name-importTableAddress.VirtualAddress))
+
 		// seek to OriginalFirstThunk
-		d = d[dt.OriginalFirstThunk-ds.VirtualAddress:]
-		for len(d) > 0 {
+		thunkDataBlock := sectionData[dt.OriginalFirstThunk-importTableAddress.VirtualAddress:]
+
+		for len(thunkDataBlock) > 0 {
 			if pe64 { // 64bit
-				va := binary.LittleEndian.Uint64(d[0:8])
-				d = d[8:]
+				va := binary.LittleEndian.Uint64(thunkDataBlock[0:8])
+				thunkDataBlock = thunkDataBlock[8:]
 				if va == 0 {
 					break
 				}
 				if va&0x8000000000000000 > 0 { // is Ordinal
 					// TODO add dynimport ordinal support.
 				} else {
-					fn, _ := getString(names, int(uint32(va)-ds.VirtualAddress+2))
-					all = append(all, fn+":"+dt.dll)
+					fn, _ := getString(sectionData, int(uint32(va)-importTableAddress.VirtualAddress+2))
+					allSymbols = append(allSymbols, fn+":"+dll)
 				}
 			} else { // 32bit
-				va := binary.LittleEndian.Uint32(d[0:4])
-				d = d[4:]
+				va := binary.LittleEndian.Uint32(thunkDataBlock[0:4])
+				thunkDataBlock = thunkDataBlock[4:]
 				if va == 0 {
 					break
 				}
@@ -317,23 +341,75 @@ func (f *File) ImportedSymbols() ([]string, error) {
 					// TODO add dynimport ordinal support.
 					//ord := va&0x0000FFFF
 				} else {
-					fn, _ := getString(names, int(va-ds.VirtualAddress+2))
-					all = append(all, fn+":"+dt.dll)
+					fn, _ := getString(sectionData, int(va-importTableAddress.VirtualAddress+2))
+					allSymbols = append(allSymbols, fn+":"+dll)
 				}
 			}
 		}
 	}
 
-	return all, nil
+	return allSymbols, nil
 }
 
 // ImportedLibraries returns the names of all libraries
 // referred to by the binary f that are expected to be
 // linked with the binary at dynamic link time.
 func (f *File) ImportedLibraries() ([]string, error) {
-	// TODO
-	// cgo -dynimport don't use this for windows PE, so just return.
-	return nil, nil
+	var dd [16]DataDirectory
+	switch oh := f.OptionalHeader.(type) {
+	case *OptionalHeader32:
+		dd = oh.DataDirectory
+	case *OptionalHeader64:
+		dd = oh.DataDirectory
+	}
+
+	importTableAddress := dd[1]
+
+	iStart := int64(importTableAddress.VirtualAddress)
+	iEnd := int64(importTableAddress.VirtualAddress) + int64(importTableAddress.Size)
+	var ds *Section
+	for _, s := range f.Sections {
+		sStart := int64(s.VirtualAddress)
+		sEnd := int64(s.VirtualAddress) + int64(s.VirtualSize)
+
+		if sStart <= iStart && iEnd <= sEnd {
+			ds = s
+			break
+		}
+	}
+	if ds == nil {
+		// could not find matching section :(
+		return nil, nil
+	}
+
+	sectionData, err := ds.Data()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	sectionData = sectionData[importTableAddress.VirtualAddress-ds.VirtualAddress:]
+
+	var importDirectories []ImageImportDescriptor
+	idBlock := sectionData
+	for len(idBlock) > 0 {
+		var dt ImageImportDescriptor
+		dt.OriginalFirstThunk = binary.LittleEndian.Uint32(idBlock[0:4])
+		dt.Name = binary.LittleEndian.Uint32(idBlock[12:16])
+		dt.FirstThunk = binary.LittleEndian.Uint32(idBlock[16:20])
+		idBlock = idBlock[20:]
+		if dt.OriginalFirstThunk == 0 {
+			break
+		}
+		importDirectories = append(importDirectories, dt)
+	}
+
+	var dlls []string
+	for _, dt := range importDirectories {
+		dll, _ := getString(sectionData, int(dt.Name-importTableAddress.VirtualAddress))
+		dlls = append(dlls, dll)
+	}
+
+	return dlls, nil
 }
 
 // FormatError is unused.

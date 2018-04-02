@@ -1,8 +1,6 @@
 package pelican
 
 import (
-	"strings"
-
 	"github.com/itchio/pelican/pe"
 
 	"github.com/itchio/wharf/eos"
@@ -37,22 +35,8 @@ func Probe(file eos.File, params *ProbeParams) (*PeInfo, error) {
 		info.Arch = "amd64"
 	}
 
-	libs := make(map[string]bool)
-	syms, err := pf.ImportedSymbols()
-	if err == nil {
-		for _, s := range syms {
-			tokens := strings.SplitN(s, ":", 2)
-			_, lib := tokens[0], tokens[1]
-			libs[lib] = true
-		}
-
-		consumer.Infof("%d imported libs", len(libs))
-		for l, _ := range libs {
-			consumer.Infof("- %s", l)
-		}
-	} else {
-		consumer.Warnf("Could not parse imported symbols: %v", err)
-	}
+	imports, err := pf.ImportedLibraries()
+	info.Imports = imports
 
 	sect := pf.Section(".rsrc")
 	if sect != nil {
