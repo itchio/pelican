@@ -13,6 +13,9 @@ func testProbeParams(t *testing.T) *pelican.ProbeParams {
 	return &pelican.ProbeParams{
 		Consumer: &state.Consumer{
 			OnMessage: func(level string, message string) {
+				if level == "debug" {
+					return
+				}
 				t.Logf("[%s] %s", level, message)
 			},
 		},
