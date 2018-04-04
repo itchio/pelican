@@ -132,6 +132,7 @@ func Test_WinCDEmuInstaller(t *testing.T) {
 
 	assert.NotNil(t, info.AssemblyInfo)
 	assert.EqualValues(t, "requireAdministrator", info.AssemblyInfo.RequestedExecutionLevel)
+	assert.True(t, info.RequiresElevation())
 
 	assert.EqualValues(t, 1, len(info.DependentAssemblies))
 	da := info.DependentAssemblies[0]
@@ -158,6 +159,7 @@ func Test_PidginUninstaller(t *testing.T) {
 
 	assert.NotNil(t, info.AssemblyInfo)
 	assert.EqualValues(t, "highestAvailable", info.AssemblyInfo.RequestedExecutionLevel)
+	assert.True(t, info.RequiresElevation())
 
 	assert.EqualValues(t, 1, len(info.DependentAssemblies))
 	da := info.DependentAssemblies[0]
