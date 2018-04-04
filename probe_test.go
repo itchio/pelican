@@ -19,6 +19,7 @@ func testProbeParams(t *testing.T) *pelican.ProbeParams {
 				t.Logf("[%s] %s", level, message)
 			},
 		},
+		Strict: true,
 	}
 }
 
@@ -164,4 +165,14 @@ func Test_PidginUninstaller(t *testing.T) {
 	assert.EqualValues(t, "*", da.Language)
 	assert.EqualValues(t, "X86", da.ProcessorArchitecture)
 	assert.EqualValues(t, "6595b64144ccf1df", da.PublicKeyToken)
+}
+
+func Test_Stockboy(t *testing.T) {
+	f, err := eos.Open("./testdata/stockboy/stockboy_install_sliced.EXE")
+	assert.NoError(t, err)
+	defer f.Close()
+
+	info, err := pelican.Probe(f, testProbeParams(t))
+	assert.NoError(t, err)
+	assert.EqualValues(t, pelican.Arch386, info.Arch)
 }
