@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/itchio/httpkit/progress"
+	"github.com/itchio/headway/united"
 	"github.com/itchio/pelican/pe"
 
 	xj "github.com/basgys/goxml2json"
@@ -92,7 +92,7 @@ var ResourceTypeNames = map[ResourceType]string{
 
 func (params *ProbeParams) parseResources(info *PeInfo, sect *pe.Section) error {
 	consumer := params.Consumer
-	consumer.Debugf("Found resource section (%s)", progress.FormatBytes(int64(sect.Size)))
+	consumer.Debugf("Found resource section (%s)", united.FormatBytes(int64(sect.Size)))
 
 	var readDirectory func(offset uint32, level int, resourceType ResourceType) error
 	readDirectory = func(offset uint32, level int, resourceType ResourceType) error {
@@ -154,7 +154,7 @@ func (params *ProbeParams) parseResources(info *PeInfo, sect *pe.Section) error 
 			}
 
 			if resourceType == ResourceTypeManifest || resourceType == ResourceTypeVersion {
-				log("@ %x (%s, %d bytes)", irda.Data, progress.FormatBytes(int64(irda.Size)), irda.Size)
+				log("@ %x (%s, %d bytes)", irda.Data, united.FormatBytes(int64(irda.Size)), irda.Size)
 
 				dataStart := int64(irda.Data - sect.VirtualAddress)
 				log("is dataStart 32-bit aligned? %v", dataStart%4 == 0)
