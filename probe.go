@@ -3,8 +3,8 @@ package pelican
 import (
 	"github.com/itchio/pelican/pe"
 
-	"github.com/itchio/httpkit/eos"
 	"github.com/itchio/headway/state"
+	"github.com/itchio/httpkit/eos"
 	"github.com/pkg/errors"
 )
 
@@ -16,10 +16,7 @@ type ProbeParams struct {
 }
 
 // Probe retrieves information about an PE file
-func Probe(file eos.File, params *ProbeParams) (*PeInfo, error) {
-	if params == nil {
-		return nil, errors.New("params must be set")
-	}
+func Probe(file eos.File, params ProbeParams) (*PeInfo, error) {
 	consumer := params.Consumer
 
 	pf, err := pe.NewFile(file)

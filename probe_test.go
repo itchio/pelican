@@ -3,14 +3,14 @@ package pelican_test
 import (
 	"testing"
 
-	"github.com/itchio/pelican"
-	"github.com/itchio/httpkit/eos"
 	"github.com/itchio/headway/state"
+	"github.com/itchio/httpkit/eos"
+	"github.com/itchio/pelican"
 	"github.com/stretchr/testify/assert"
 )
 
-func testProbeParams(t *testing.T) *pelican.ProbeParams {
-	return &pelican.ProbeParams{
+func testProbeParams(t *testing.T) pelican.ProbeParams {
+	return pelican.ProbeParams{
 		Consumer: &state.Consumer{
 			OnMessage: func(level string, message string) {
 				if level == "debug" {
