@@ -8,6 +8,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+
+	"github.com/itchio/headway/united"
 )
 
 // cstring converts ASCII byte sequence b to string.
@@ -22,13 +24,13 @@ func cstring(b []byte) string {
 // StringTable is a COFF string table.
 type StringTable []byte
 
-func readStringTable(fh *FileHeader, r io.ReadSeeker) (StringTable, error) {
+func readStringTable(f *File, fh *FileHeader, r io.ReadSeeker) (StringTable, error) {
 	// COFF string table is located right after COFF symbol table.
 	if fh.PointerToSymbolTable <= 0 {
 		return nil, nil
 	}
 	offset := fh.PointerToSymbolTable + COFFSymbolSize*fh.NumberOfSymbols
-	_, err := r.Seek(int64(offset), seekStart)
+	_, err := r.Seek(int64(offset), io.SeekStart)
 	if err != nil {
 		return nil, fmt.Errorf("fail to seek to string table: %v", err)
 	}
@@ -37,11 +39,18 @@ func readStringTable(fh *FileHeader, r io.ReadSeeker) (StringTable, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fail to read string table length: %v", err)
 	}
+
+	var end int64 = int64(offset) + int64(l)
+	if end >= f.size {
+		return nil, fmt.Errorf("debug/pe thinks the string table is at %s, but the file is only %s", united.FormatBytes(end), united.FormatBytes(f.size))
+	}
+
 	// string table length includes itself
 	if l <= 4 {
 		return nil, nil
 	}
 	l -= 4
+
 	buf := make([]byte, l)
 	_, err = io.ReadFull(r, buf)
 	if err != nil {

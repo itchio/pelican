@@ -10,7 +10,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"os"
 
 	"github.com/pkg/errors"
 )
@@ -30,33 +29,7 @@ type File struct {
 	closer   io.Closer
 	readerAt io.ReaderAt
 	base     int64
-}
-
-// Open opens the named file using os.Open and prepares it for use as a PE binary.
-func Open(name string) (*File, error) {
-	f, err := os.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	ff, err := NewFile(f)
-	if err != nil {
-		f.Close()
-		return nil, err
-	}
-	ff.closer = f
-	return ff, nil
-}
-
-// Close closes the File.
-// If the File was created using NewFile directly instead of Open,
-// Close has no effect.
-func (f *File) Close() error {
-	var err error
-	if f.closer != nil {
-		err = f.closer.Close()
-		f.closer = nil
-	}
-	return err
+	size     int64
 }
 
 var (
@@ -67,10 +40,11 @@ var (
 // TODO(brainman): add Load function, as a replacement for NewFile, that does not call removeAuxSymbols (for performance)
 
 // NewFile creates a new File for accessing a PE binary in an underlying reader.
-func NewFile(r io.ReaderAt) (*File, error) {
+func NewFile(r io.ReaderAt, size int64) (*File, error) {
 	f := new(File)
+	f.size = size
 	f.readerAt = r
-	sr := io.NewSectionReader(r, 0, 1<<63-1)
+	sr := io.NewSectionReader(r, 0, size)
 
 	var dosheader [96]byte
 	if _, err := r.ReadAt(dosheader[0:], 0); err != nil {
@@ -80,7 +54,10 @@ func NewFile(r io.ReaderAt) (*File, error) {
 	if dosheader[0] == 'M' && dosheader[1] == 'Z' {
 		signoff := int64(binary.LittleEndian.Uint32(dosheader[0x3c:]))
 		var sign [4]byte
-		r.ReadAt(sign[:], signoff)
+		_, err := r.ReadAt(sign[:], signoff)
+		if err != nil {
+			return nil, err
+		}
 		if !(sign[0] == 'P' && sign[1] == 'E' && sign[2] == 0 && sign[3] == 0) {
 			return nil, fmt.Errorf("Invalid PE COFF file signature of %v.", sign)
 		}
@@ -88,8 +65,11 @@ func NewFile(r io.ReaderAt) (*File, error) {
 	} else {
 		base = int64(0)
 	}
-	sr.Seek(base, seekStart)
-	if err := binary.Read(sr, binary.LittleEndian, &f.FileHeader); err != nil {
+	_, err := sr.Seek(base, seekStart)
+	if err != nil {
+		return nil, err
+	}
+	if err = binary.Read(sr, binary.LittleEndian, &f.FileHeader); err != nil {
 		return nil, err
 	}
 	switch f.FileHeader.Machine {
@@ -98,16 +78,14 @@ func NewFile(r io.ReaderAt) (*File, error) {
 		return nil, fmt.Errorf("Unrecognised COFF file header machine value of 0x%x.", f.FileHeader.Machine)
 	}
 
-	var err error
-
 	// Read string table.
-	f.StringTable, err = readStringTable(&f.FileHeader, sr)
+	f.StringTable, err = readStringTable(f, &f.FileHeader, sr)
 	if err != nil {
 		return nil, err
 	}
 
 	// Read symbol table.
-	f.COFFSymbols, err = readCOFFSymbols(&f.FileHeader, sr)
+	f.COFFSymbols, err = readCOFFSymbols(f, &f.FileHeader, sr)
 	if err != nil {
 		return nil, err
 	}

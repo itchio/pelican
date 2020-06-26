@@ -22,7 +22,7 @@ type COFFSymbol struct {
 	NumberOfAuxSymbols uint8
 }
 
-func readCOFFSymbols(fh *FileHeader, r io.ReadSeeker) ([]COFFSymbol, error) {
+func readCOFFSymbols(f *File, fh *FileHeader, r io.ReadSeeker) ([]COFFSymbol, error) {
 	if fh.PointerToSymbolTable == 0 {
 		return nil, nil
 	}

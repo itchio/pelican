@@ -19,7 +19,12 @@ type ProbeParams struct {
 func Probe(file eos.File, params ProbeParams) (*PeInfo, error) {
 	consumer := params.Consumer
 
-	pf, err := pe.NewFile(file)
+	stats, err := file.Stat()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	pf, err := pe.NewFile(file, stats.Size())
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
