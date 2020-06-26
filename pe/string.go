@@ -41,7 +41,7 @@ func readStringTable(f *File, fh *FileHeader, r io.ReadSeeker) (StringTable, err
 	}
 
 	var end int64 = int64(offset) + int64(l)
-	if end >= f.size {
+	if end > f.size {
 		return nil, fmt.Errorf("debug/pe thinks the string table is at %s, but the file is only %s", united.FormatBytes(end), united.FormatBytes(f.size))
 	}
 
