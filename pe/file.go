@@ -20,7 +20,7 @@ const seekStart = 0
 // A File represents an open PE file.
 type File struct {
 	FileHeader
-	OptionalHeader interface{} // of type *OptionalHeader32 or *OptionalHeader64
+	OptionalHeader any // of type *OptionalHeader32 or *OptionalHeader64
 	Sections       []*Section
 	Symbols        []*Symbol    // COFF symbols with auxiliary symbol records removed
 	COFFSymbols    []COFFSymbol // all COFF symbols (including auxiliary symbol records)

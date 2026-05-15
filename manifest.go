@@ -6,7 +6,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-type node = map[string]interface{}
+type node = map[string]any
 
 func visit(n node, key string, f func(c node)) {
 	if c, ok := n[key].(node); ok {

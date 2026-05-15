@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"strings"
 
 	"github.com/itchio/headway/united"
@@ -97,7 +96,7 @@ func (params *ProbeParams) parseResources(info *PeInfo, sect *pe.Section) error 
 	var readDirectory func(offset uint32, level int, resourceType ResourceType) error
 	readDirectory = func(offset uint32, level int, resourceType ResourceType) error {
 		prefix := strings.Repeat("  ", level)
-		log := func(msg string, args ...interface{}) {
+		log := func(msg string, args ...any) {
 			consumer.Debugf("%s%s", prefix, fmt.Sprintf(msg, args...))
 		}
 
@@ -160,7 +159,7 @@ func (params *ProbeParams) parseResources(info *PeInfo, sect *pe.Section) error 
 				log("is dataStart 32-bit aligned? %v", dataStart%4 == 0)
 				sr := io.NewSectionReader(sect, dataStart, int64(irda.Size))
 
-				rawData, err := ioutil.ReadAll(sr)
+				rawData, err := io.ReadAll(sr)
 				if err != nil {
 					return errors.WithStack(err)
 				}
@@ -172,7 +171,7 @@ func (params *ProbeParams) parseResources(info *PeInfo, sect *pe.Section) error 
 					// codepage
 					stringData := string(rawData)
 					log("=========================")
-					for _, l := range strings.Split(stringData, "\n") {
+					for l := range strings.SplitSeq(stringData, "\n") {
 						log("%s", l)
 					}
 					log("=========================")
