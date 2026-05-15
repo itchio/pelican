@@ -271,11 +271,15 @@ func (f *File) ImportedSymbols() ([]string, error) {
 		return nil, err
 	}
 
-	sectionData = sectionData[importTableAddress.VirtualAddress-ds.VirtualAddress:]
+	seek := importTableAddress.VirtualAddress - ds.VirtualAddress
+	if seek >= uint32(len(sectionData)) {
+		return nil, fmt.Errorf("import table virtual address out of range")
+	}
+	sectionData = sectionData[seek:]
 
 	var importDirectories []ImageImportDescriptor
 	idBlock := sectionData
-	for len(idBlock) > 0 {
+	for len(idBlock) >= 20 {
 		var dt ImageImportDescriptor
 		dt.OriginalFirstThunk = binary.LittleEndian.Uint32(idBlock[0:4])
 		dt.Name = binary.LittleEndian.Uint32(idBlock[12:16])
@@ -291,8 +295,11 @@ func (f *File) ImportedSymbols() ([]string, error) {
 	for _, dt := range importDirectories {
 		dll, _ := getString(sectionData, int(dt.Name-importTableAddress.VirtualAddress))
 
-		// seek to OriginalFirstThunk
-		thunkDataBlock := sectionData[dt.OriginalFirstThunk-importTableAddress.VirtualAddress:]
+		thunkSeek := dt.OriginalFirstThunk - importTableAddress.VirtualAddress
+		if thunkSeek >= uint32(len(sectionData)) {
+			return nil, fmt.Errorf("thunk virtual address out of range")
+		}
+		thunkDataBlock := sectionData[thunkSeek:]
 
 		for len(thunkDataBlock) > 0 {
 			if pe64 { // 64bit
@@ -363,11 +370,15 @@ func (f *File) ImportedLibraries() ([]string, error) {
 		return nil, err
 	}
 
-	sectionData = sectionData[importTableAddress.VirtualAddress-ds.VirtualAddress:]
+	seek := importTableAddress.VirtualAddress - ds.VirtualAddress
+	if seek >= uint32(len(sectionData)) {
+		return nil, fmt.Errorf("import table virtual address out of range")
+	}
+	sectionData = sectionData[seek:]
 
 	var importDirectories []ImageImportDescriptor
 	idBlock := sectionData
-	for len(idBlock) > 0 {
+	for len(idBlock) >= 20 {
 		var dt ImageImportDescriptor
 		dt.OriginalFirstThunk = binary.LittleEndian.Uint32(idBlock[0:4])
 		dt.Name = binary.LittleEndian.Uint32(idBlock[12:16])
