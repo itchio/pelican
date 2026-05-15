@@ -10,8 +10,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-
-	"github.com/pkg/errors"
 )
 
 // Avoid use of post-Go 1.4 io features, to make safe for toolchain bootstrap.
@@ -270,7 +268,7 @@ func (f *File) ImportedSymbols() ([]string, error) {
 
 	sectionData, err := ds.Data()
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 
 	sectionData = sectionData[importTableAddress.VirtualAddress-ds.VirtualAddress:]
@@ -362,7 +360,7 @@ func (f *File) ImportedLibraries() ([]string, error) {
 
 	sectionData, err := ds.Data()
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 
 	sectionData = sectionData[importTableAddress.VirtualAddress-ds.VirtualAddress:]

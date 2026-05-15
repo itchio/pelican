@@ -3,10 +3,10 @@ package pelican
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
+	"fmt"
 	"io"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 // PE version block utilities
@@ -75,10 +75,10 @@ func (params *ProbeParams) parseVersion(info *PeInfo, rawData []byte) error {
 		for {
 			_, err := r.Read(buf)
 			if err != nil {
-				if errors.Cause(err) == io.EOF {
+				if errors.Is(err, io.EOF) {
 					return res, nil
 				}
-				return nil, errors.WithStack(err)
+				return nil, err
 			}
 
 			if buf[0] == 0 && buf[1] == 0 {
@@ -93,13 +93,13 @@ func (params *ProbeParams) parseVersion(info *PeInfo, rawData []byte) error {
 	parseVSBlock := func(r ReadSeekerAt) (*VsBlock, error) {
 		startOffset, err := r.Seek(0, io.SeekCurrent)
 		if err != nil {
-			return nil, errors.WithStack(err)
+			return nil, err
 		}
 
 		var wLength uint16
 		err = binary.Read(r, binary.LittleEndian, &wLength)
 		if err != nil {
-			return nil, errors.WithStack(err)
+			return nil, err
 		}
 
 		endOffset := startOffset + int64(wLength)
@@ -110,23 +110,23 @@ func (params *ProbeParams) parseVersion(info *PeInfo, rawData []byte) error {
 		var wValueLength uint16
 		err = binary.Read(sr, binary.LittleEndian, &wValueLength)
 		if err != nil {
-			return nil, errors.WithStack(err)
+			return nil, err
 		}
 
 		var wType uint16
 		err = binary.Read(sr, binary.LittleEndian, &wType)
 		if err != nil {
-			return nil, errors.WithStack(err)
+			return nil, err
 		}
 
 		szKey, err := parseNullTerminatedString(sr)
 		if err != nil {
-			return nil, errors.WithStack(err)
+			return nil, err
 		}
 
 		err = skipPadding(sr)
 		if err != nil {
-			return nil, errors.WithStack(err)
+			return nil, err
 		}
 
 		return &VsBlock{
@@ -141,7 +141,7 @@ func (params *ProbeParams) parseVersion(info *PeInfo, rawData []byte) error {
 
 	vsVersionInfo, err := parseVSBlock(br)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	if vsVersionInfo.ValueLength == 0 {
@@ -151,25 +151,25 @@ func (params *ProbeParams) parseVersion(info *PeInfo, rawData []byte) error {
 	ffi := new(VsFixedFileInfo)
 	err = binary.Read(vsVersionInfo, binary.LittleEndian, ffi)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	if ffi.DwSignature != 0xFEEF04BD {
-		return errors.Errorf("invalid version block signature (%08x)", ffi.DwSignature)
+		return fmt.Errorf("invalid version block signature (%08x)", ffi.DwSignature)
 	}
 
 	err = skipPadding(vsVersionInfo)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	for {
 		fileInfo, err := parseVSBlock(vsVersionInfo)
 		if err != nil {
-			if errors.Cause(err) == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
-			return errors.WithStack(err)
+			return err
 		}
 
 		switch fileInfo.KeyString() {
@@ -177,27 +177,27 @@ func (params *ProbeParams) parseVersion(info *PeInfo, rawData []byte) error {
 			for {
 				stable, err := parseVSBlock(fileInfo)
 				if err != nil {
-					if errors.Cause(err) == io.EOF {
+					if errors.Is(err, io.EOF) {
 						break
 					}
-					return errors.WithStack(err)
+					return err
 				}
 
 				if isLanguageWhitelisted(stable.KeyString()) {
 					for {
 						str, err := parseVSBlock(stable)
 						if err != nil {
-							if errors.Cause(err) == io.EOF {
+							if errors.Is(err, io.EOF) {
 								break
 							}
-							return errors.WithStack(err)
+							return err
 						}
 
 						keyString := str.KeyString()
 
 						val, err := parseNullTerminatedString(str)
 						if err != nil {
-							return errors.WithStack(err)
+							return err
 						}
 						valString := strings.TrimSpace(DecodeUTF16(val))
 
@@ -205,19 +205,19 @@ func (params *ProbeParams) parseVersion(info *PeInfo, rawData []byte) error {
 						info.VersionProperties[keyString] = valString
 						_, err = stable.Seek(str.EndOffset, io.SeekStart)
 						if err != nil {
-							return errors.WithStack(err)
+							return err
 						}
 
 						err = skipPadding(stable)
 						if err != nil {
-							return errors.WithStack(err)
+							return err
 						}
 					}
 				}
 
 				_, err = fileInfo.Seek(stable.EndOffset, io.SeekStart)
 				if err != nil {
-					return errors.WithStack(err)
+					return err
 				}
 			}
 		case "VarFileInfo":
@@ -226,7 +226,7 @@ func (params *ProbeParams) parseVersion(info *PeInfo, rawData []byte) error {
 
 		_, err = vsVersionInfo.Seek(fileInfo.EndOffset, io.SeekStart)
 		if err != nil {
-			return errors.WithStack(err)
+			return err
 		}
 	}
 

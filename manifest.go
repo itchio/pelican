@@ -2,8 +2,6 @@ package pelican
 
 import (
 	"encoding/json"
-
-	"github.com/pkg/errors"
 )
 
 type node = map[string]any
@@ -35,7 +33,7 @@ func interpretManifest(info *PeInfo, manifest []byte) error {
 	intermediate := make(node)
 	err := json.Unmarshal([]byte(manifest), &intermediate)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	assInfo := &AssemblyInfo{}

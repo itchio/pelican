@@ -10,7 +10,6 @@ import (
 	"github.com/itchio/pelican/pe"
 
 	xj "github.com/basgys/goxml2json"
-	"github.com/pkg/errors"
 )
 
 type imageResourceDirectory struct {
@@ -104,14 +103,14 @@ func (params *ProbeParams) parseResources(info *PeInfo, sect *pe.Section) error 
 		ird := new(imageResourceDirectory)
 		err := binary.Read(br, binary.LittleEndian, ird)
 		if err != nil {
-			return errors.WithStack(err)
+			return err
 		}
 
 		for i := uint16(0); i < ird.NumberOfNamedEntries+ird.NumberOfIdEntries; i++ {
 			irde := new(imageResourceDirectoryEntry)
 			err = binary.Read(br, binary.LittleEndian, irde)
 			if err != nil {
-				return errors.WithStack(err)
+				return err
 			}
 
 			if irde.NameId&0x80000000 > 0 {
@@ -139,7 +138,7 @@ func (params *ProbeParams) parseResources(info *PeInfo, sect *pe.Section) error 
 
 				err := readDirectory(offset, level+1, recResourceType)
 				if err != nil {
-					return errors.WithStack(err)
+					return err
 				}
 				continue
 			}
@@ -149,7 +148,7 @@ func (params *ProbeParams) parseResources(info *PeInfo, sect *pe.Section) error 
 			irda := new(imageResourceDataEntry)
 			err = binary.Read(dbr, binary.LittleEndian, irda)
 			if err != nil {
-				return errors.WithStack(err)
+				return err
 			}
 
 			if resourceType == ResourceTypeManifest || resourceType == ResourceTypeVersion {
@@ -161,7 +160,7 @@ func (params *ProbeParams) parseResources(info *PeInfo, sect *pe.Section) error 
 
 				rawData, err := io.ReadAll(sr)
 				if err != nil {
-					return errors.WithStack(err)
+					return err
 				}
 
 				switch resourceType {
@@ -179,14 +178,14 @@ func (params *ProbeParams) parseResources(info *PeInfo, sect *pe.Section) error 
 					js, err := xj.Convert(strings.NewReader(stringData))
 					if err != nil {
 						if params.Strict {
-							return errors.WithMessage(err, "while converting manifest to json")
+							return fmt.Errorf("while converting manifest to json: %w", err)
 						}
 						consumer.Warnf("Could not convert manifest to json: %+v", err)
 					} else {
 						err := interpretManifest(info, js.Bytes())
 						if err != nil {
 							if params.Strict {
-								return errors.WithMessage(err, "while intepreting manifest")
+								return fmt.Errorf("while intepreting manifest: %w", err)
 							}
 							consumer.Warnf("Could not interpret manifest: %+v", err)
 						}
@@ -195,7 +194,7 @@ func (params *ProbeParams) parseResources(info *PeInfo, sect *pe.Section) error 
 					err := params.parseVersion(info, rawData)
 					if err != nil {
 						if params.Strict {
-							return errors.WithMessage(err, "while parsing version block")
+							return fmt.Errorf("while parsing version block: %w", err)
 						}
 						consumer.Warnf("Could not parse resources: %+v", err)
 					}
@@ -207,7 +206,7 @@ func (params *ProbeParams) parseResources(info *PeInfo, sect *pe.Section) error 
 
 	err := readDirectory(0, 0, 0)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	return nil

@@ -6,7 +6,6 @@ require (
 	github.com/basgys/goxml2json v1.1.0
 	github.com/itchio/headway v0.0.0-20200301160421-e15721f23905
 	github.com/itchio/httpkit v0.0.0-20200301151414-2207154e44d1
-	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.5.1
 )
 
@@ -26,6 +25,7 @@ require (
 	github.com/getlantern/ops v0.0.0-20190325191751-d70cb0d6f85f // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	golang.org/x/net v0.0.0-20200301022130-244492dfa37a // indirect
 	golang.org/x/text v0.3.2 // indirect

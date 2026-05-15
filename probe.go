@@ -1,11 +1,12 @@
 package pelican
 
 import (
+	"fmt"
+
 	"github.com/itchio/pelican/pe"
 
 	"github.com/itchio/headway/state"
 	"github.com/itchio/httpkit/eos"
-	"github.com/pkg/errors"
 )
 
 type ProbeParams struct {
@@ -21,12 +22,12 @@ func Probe(file eos.File, params ProbeParams) (*PeInfo, error) {
 
 	stats, err := file.Stat()
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 
 	pf, err := pe.NewFile(file, stats.Size())
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 
 	info := &PeInfo{
@@ -43,7 +44,7 @@ func Probe(file eos.File, params ProbeParams) (*PeInfo, error) {
 	imports, err := pf.ImportedLibraries()
 	if err != nil {
 		if params.Strict {
-			return nil, errors.WithMessage(err, "while parsing imported libraries")
+			return nil, fmt.Errorf("while parsing imported libraries: %w", err)
 		}
 		consumer.Warnf("Could not parse imported libraries: %+v", err)
 	}
@@ -54,7 +55,7 @@ func Probe(file eos.File, params ProbeParams) (*PeInfo, error) {
 		err = params.parseResources(info, sect)
 		if err != nil {
 			if params.Strict {
-				return nil, errors.WithMessage(err, "while parsing resources")
+				return nil, fmt.Errorf("while parsing resources: %w", err)
 			}
 			consumer.Warnf("Could not parse resources: %+v", err)
 		}
